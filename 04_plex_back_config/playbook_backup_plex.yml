@@ -1,0 +1,61 @@
+---
+- name: Deploy Plex Media Server
+  hosts: all
+  become: true
+  vars:
+w
+  tasks:
+    - name: Create tarball of /plex directory on target host (async)
+      ansible.builtin.archive:
+        path: /plex
+        dest: /tmp/plex_backup_{{ ansible_date_time.iso8601_basic_short }}.tar.gz
+        format: gz
+      async: 7200
+      poll: 0
+      register: plex_archive
+
+    - name: Create tarball of /plex directory on target host
+      ansible.builtin.archive:
+        path: /plex
+        dest: /tmp/plex_backup_{{ ansible_date_time.iso8601_basic_short }}.tar.gz
+        format: gz
+      register: plex_archive
+
+    - name: Create NFS mount point
+      become: true
+      ansible.builtin.file:
+        path: "{{ nfs_mount_path}}"
+        state: directory
+        mode: "0755"
+
+    - name: Mount NFS share
+      ansible.posix.mount:
+        fstype: nfs
+        opts: "rw,nfsvers=3"
+        src: "{{ nfs_server }}:{{ nfs_data_path }}"
+        path: "{{ nfs_mount_path }}"
+        state: mounted
+
+    - name: Wait for the async tarball creation to complete
+      ansible.builtin.async_status:
+        jid: "{{ plex_archive.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 60
+      delay: 60
+
+    - name: Copy tarball to mounted NFS share
+      ansible.builtin.copy:
+        src: "{{ plex_archive.dest }}"
+        dest: "{{ nfs_mount_path}}/plex_backup_{{ ansible_date_time.iso8601_basic_short }}.tar.gz"
+        remote_src: yes
+
+    - name: Unmount NFS share
+      ansible.posix.mount:
+        path: "{{ nfs_mount_path}}"
+        state: unmounted
+
+    - name: Remove tarball from target host
+      ansible.builtin.file:
+        path: "{{ plex_archive.dest }}"
+        state: absent

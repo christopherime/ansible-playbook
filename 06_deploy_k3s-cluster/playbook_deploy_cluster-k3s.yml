@@ -1,0 +1,57 @@
+---
+- name: Install and start k3s cluster on several nodes
+  hosts: all
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - bash
+          - socat
+          - jq
+        state: present
+      when: ansible_distribution == 'Ubuntu'
+
+    - name: Download k3s installation script
+      get_url:
+        url: https://get.k3s.io
+        dest: /tmp/install-k3s.sh
+        mode: '0755'
+
+- name: Install and start k3s control-plane nodes
+  hosts: control-place
+  become: yes
+  tasks:
+    - name: Run k3s installation script
+      command: /tmp/install-k3s.sh --cluster-init
+      args:
+        creates: /usr/local/bin/k3s
+      run_once: true
+
+    - name: Get k3s token
+      command: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token
+      run_once: true
+
+    - name: Store k3s token in the inventory
+      set_fact:
+        k3s_token: "{{ k3s_token.stdout }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Run k3s installation script on remaining control-plane nodes
+      command: /tmp/install-k3s.sh --server https://{{ hostvars[groups['control-place'][0]]['ansible_host'] }}:6443 --token {{ hostvars['localhost']['k3s_token'] }}
+      args:
+        creates: /usr/local/bin/k3s
+      when: inventory_hostname != groups['control-place'][0]
+
+- name: Install and start k3s worker nodes
+  hosts: worker
+  become: yes
+  tasks:
+    - name: Run k3s installation script
+      command: /tmp/install-k3s.sh --token {{ hostvars['localhost']['k3s_token'] }} --server https://{{ hostvars[groups['control-place'][0]]['ansible_host'] }}:6443
+      args:
+        creates: /usr/local/bin/k3s

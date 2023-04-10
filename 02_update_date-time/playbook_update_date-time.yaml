@@ -1,0 +1,11 @@
+---
+- name: Playbook update Date Time
+  hosts: all
+  become: yes
+  vars:
+    timezone: ""
+  tasks:
+    - name: Set timezone {{ timezone }}
+      community.general.timezone:
+        name: {{ timezone }}
+      when: timezone != ""

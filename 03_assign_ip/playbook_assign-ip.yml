@@ -1,0 +1,26 @@
+---
+- name: Assign IP addresses to machines
+  hosts: all
+  become: yes
+  vars:
+    gateway: 10.0.0.1
+    netmask: 255.0.0.0
+    dns_servers:
+      - 1.1.1.1
+      - 8.8.8.8
+    ip_range:
+      start: ""
+      end: ""
+  tasks:
+    - name: Generate new IP address
+      set_fact:
+        ip_address: "{{ ip_range.start | ipaddr('next_nth_usable', 1) }}"
+      when: ip_address is not defined
+    - name: Create netplan configuration
+      template:
+        src: netplan.j2
+        dest: /etc/netplan/01-netcfg.yaml
+
+    - name: Apply netplan configuration
+      ansible.builtin.command: netplan apply
+      when: ansible_facts['distribution'] == 'Ubuntu'

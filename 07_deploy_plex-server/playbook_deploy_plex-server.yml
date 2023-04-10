@@ -1,0 +1,51 @@
+---
+- name: Deploy Plex Media Server
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure required packages are installed
+      package:
+        name:
+          - docker
+        state: present
+
+    - name: Ensure Docker is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create plex/config directory on target host
+      file:
+        path: "{{ plex_config_path}}"
+        state: directory
+        mode: "0755"
+
+    - name: Create NFS Docker volume
+      community.docker.docker_volume:
+        name: media 
+        driver: local
+        driver_options:
+          type: nfs
+          o: addr={{ nfs_server }},rw,nfsvers=3
+          device: "{{ nfs_media_path }}"
+
+    - name: Deploy Plex container
+      community.docker.docker_container:
+        name: plex
+        image: lscr.io/linuxserver/plex:latest
+        state: started
+        recreate: yes
+        pull: true
+        restart_policy: unless-stopped
+        network_mode: host
+        runtime: nvidia
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: {{ timezone }}
+          VERSION: "docker"
+          NVIDIA_VISIBLE_DEVICES: "all"
+        volumes:
+          - "{{ plex_config_path }}:/config"
+          - "media:/media"

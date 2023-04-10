@@ -1,0 +1,10 @@
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - {{ new_ip }}/{{ netmask | ipaddr('prefix') }}
+      gateway4: {{ gateway }}
+      nameservers:
+        addresses: {{ dns_servers }}
+      dhcp4: no

@@ -1,0 +1,108 @@
+---
+- name: Create Ubuntu Template
+  hosts: all
+  become: yes
+  vars:
+    ansible_mgmt_user: mgmt
+    version: jammy
+    arch: amd64
+    disk_size: 20G
+    image_name: "{{ version }}-server-cloudimg-{{ arch }}.img"
+    image_path: /tmp/{{ image_name }}
+    storage_name: local-lvm
+    public_key_path: ~/.ssh/id_rsa.pub
+    vm_id_file: vm_id.txt
+  tasks:
+
+    - name: Read VM ID from local file
+      become: false
+      local_action:
+        module: slurp
+        src: "{{ vm_id_file }}"
+      register: vm_id_file_content
+      ignore_errors: true
+
+    - name: Set VM ID to 8000 if local file does not exist
+      set_fact:
+        vm_id: 8000
+      when: vm_id_file_content.failed
+
+    - name: Set VM ID from local file content
+      set_fact:
+        vm_id: "{{ (vm_id_file_content['content'] | b64decode | int) + 1 }}"
+      when: not vm_id_file_content.failed
+
+    - name: Save updated VM ID to local file
+      become: false
+      delegate_to: localhost
+      local_action:
+        module: copy
+        content: "{{ vm_id }}"
+        dest: "{{ playbook_dir }}/{{ vm_id_file }}"
+        mode: '777'
+
+    - name: Set current date for template name
+      set_fact:
+        template_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+
+    - name: Update package cache and install libguestfs-tools
+      apt:
+        name: libguestfs-tools
+        update_cache: yes
+
+    - name: Download Ubuntu {{ version }} server cloud image
+      get_url:
+        url: https://cloud-images.ubuntu.com/{{ version }}/current/{{ image_name }}
+        dest: "{{ image_path }}"
+        timeout: 300
+
+    - name: Create {{ ansible_mgmt_user }} user
+      shell: sudo virt-customize -a {{ image_path }} --run-command "useradd -m {{ ansible_mgmt_user }}"
+
+    - name: Customize and update image
+      command:
+        cmd: >
+          {{ item }}
+      with_items:
+        - sudo virt-customize -a {{ image_path }} --firstboot-command 'useradd -m -p "" {{ ansible_mgmt_user }} ; usermod -aG sudo {{ ansible_mgmt_user }} ; echo "{{ ansible_mgmt_user }} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers ; sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" /etc/ssh/sshd_config'
+        - sudo virt-customize -a {{ image_path }} --install qemu-guest-agent
+        - sudo virt-customize -a {{ image_path }} --timezone Europe/Zurich
+        - sudo virt-customize -a {{ image_path }} --update
+        # - sudo virt-customize -a {{ image_path }} --run-command "echo -e 'network:\n  version: 2\n  renderer: networkd\n  ethernets:\n    ens3:\n      dhcp4: yes' > /etc/netplan/01-netcfg.yaml && netplan apply"
+
+    - name: Inject SSH public key
+      block:
+        - name: Create temporary file for public key
+          tempfile:
+            state: file
+          register: temp_pub_key_file
+
+        - name: Copy local SSH public key to temporary file
+          copy:
+            src: "{{ public_key_path }}"
+            dest: "{{ temp_pub_key_file.path }}"
+            mode: '0644'
+
+        - name: Inject SSH public key using temporary file
+          shell: sudo virt-customize -a {{ image_path }} --ssh-inject "{{ ansible_mgmt_user }}:file:{{ temp_pub_key_file.path }}"
+
+        - name: Remove temporary file
+          file:
+            path: "{{ temp_pub_key_file.path }}"
+            state: absent
+
+        - name: Create and configure Template
+          shell:
+            cmd: >
+              {{ item }}
+          with_items:
+            - sudo qm create {{ vm_id }} --name "{{ template_date }}-{{ version }}-template" --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
+            - sudo qm importdisk {{ vm_id }} {{ image_path }} {{ storage_name }}
+            - sudo qm resize {{ vm_id }} --disk {{ storage_name }}:vm-{{ vm_id }}-disk-0 {{ disk_size }}
+            - sudo qm set {{ vm_id }} --scsihw virtio-scsi-pci --scsi0 {{ storage_name }}:vm-{{ vm_id }}-disk-0
+            - sudo qm set {{ vm_id }} --scsihw virtio-scsi-pci --scsi0 {{ storage_name }}:cloudinit
+            - sudo qm set {{ vm_id }} --boot c --bootdisk scsi0
+            - sudo qm set {{ vm_id }} --ide2 {{ storage_name }}:cloudinit
+            - sudo qm set {{ vm_id }} --serial0 socket --vga serial0
+            - sudo qm set {{ vm_id }} --agent enabled=1
+            - sudo qm template {{ vm_id }}

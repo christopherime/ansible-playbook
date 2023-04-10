@@ -1,0 +1,14 @@
+---
+- name: Uninstall k3s cluster from all nodes
+  hosts: all
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Uninstall k3s from server nodes
+      command: /usr/local/bin/k3s-uninstall.sh
+      ignore_errors: yes
+
+    - name: Uninstall k3s from agent nodes
+      command: /usr/local/bin/k3s-agent-uninstall.sh
+      ignore_errors: yes
+
