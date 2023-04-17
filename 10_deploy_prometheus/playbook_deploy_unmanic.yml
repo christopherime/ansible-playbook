@@ -1,0 +1,32 @@
+---
+- name: Deploy Prometheus
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure required packages are installed
+      package:
+        name:
+          - docker
+        state: present
+
+    - name: Ensure Docker is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Deploy Prometheus container
+      community.docker.docker_container:
+        name: prometheus
+        image: prom/prometheus:latest
+        state: started
+        recreate: yes
+        pull: true
+        restart_policy: unless-stopped
+        env:
+        command:
+          - '--storage.tsdb.path=/prometheus'
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--web.enable-lifecycle'
+        ports:
+          - 9090:9090

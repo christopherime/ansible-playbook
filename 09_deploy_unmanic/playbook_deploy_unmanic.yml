@@ -1,5 +1,5 @@
 ---
-- name: Deploy Plex Media Server
+- name: Deploy Unmanic
   hosts: all
   become: true
   tasks:
@@ -15,9 +15,15 @@
         state: started
         enabled: yes
 
-    - name: Create plex/config directory on target host
+    - name: Create unmanic/config directory on target host
       file:
-        path: "{{ plex_config_path}}"
+        path: "{{ unmanic_config_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create unmanic/tmp directory on target host
+      file:
+        path: "{{ unmanic_tmp_path }}"
         state: directory
         mode: "0755"
 
@@ -30,15 +36,14 @@
           o: addr={{ nfs_server }},rw,nfsvers=3
           device: "{{ nfs_media_path }}"
 
-    - name: Deploy Plex container
+    - name: Deploy Unmanic container
       community.docker.docker_container:
-        name: plex
-        image: lscr.io/linuxserver/plex:latest
+        name: unmanic
+        image: josh5/unmanic:latest
         state: started
         recreate: yes
         pull: true
         restart_policy: unless-stopped
-        network_mode: host
         runtime: nvidia
         env:
           PUID: "1000"
@@ -47,5 +52,8 @@
           VERSION: "docker"
           NVIDIA_VISIBLE_DEVICES: "all"
         volumes:
-          - "{{ plex_config_path }}:/config"
-          - "media:/media"
+          - "{{ unmanic_config_path }}:/config"
+          - "{{ unmanic_tmp_path }}:/tmp/unmanic"
+          - "media:/library"
+        ports:
+          - 8888:8888

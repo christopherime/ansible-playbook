@@ -1,0 +1,9 @@
+groups:
+  - name: prometheusUp
+    rules:
+      - alert: BogusAlert
+        expr: up{job="prometheus"} != 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is down"
