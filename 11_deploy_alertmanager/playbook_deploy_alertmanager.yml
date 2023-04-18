@@ -1,0 +1,50 @@
+---
+- name: Deploy Alertmanager cluster
+  hosts: prometheus
+  become: yes
+  tasks:
+    - name: Ensure required packages are installed
+      package:
+        name:
+          - docker
+        state: present
+
+    - name: Create Alertmanager directories
+      file:
+        path: "{{ alertmanager_config_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create alertmanager.yml
+      template:
+        src: alertmanager.yml.j2
+        dest: "{{ alertmanager_config_path }}/{{ alertmanager_config_file }}"
+        mode: "0755"
+
+    - name: Deploy Alertmanager container
+      community.docker.docker_container:
+        name: alertmanager
+        image: prom/alertmanager:latest
+        state: started
+        recreate: yes
+        pull: true
+        restart_policy: unless-stopped
+        volumes:
+          - "{{ alertmanager_config_path }}:/etc/alertmanager"
+        command: >
+          --config.file=/etc/alertmanager/{{ alertmanager_config_file }}
+          --cluster.listen-address=0.0.0.0:9094
+          --web.external-url=http://0.0.0.0:9093
+          --web.listen-address=0.0.0.0:9093
+          --storage.path=/alertmanager
+          --cluster.advertise-address={{ ansible_host }}:9094
+          {% for host in groups['prometheus'] %}
+          {% if hostvars[host]['ansible_host'] != ansible_host %}
+          --cluster.peer={{ hostvars[host]['ansible_host'] }}:9094
+          {% endif %}
+          {% endfor %}
+        ports:
+          - 9093:9093
+          - 9094:9094
+          - 9094:9094/udp
+

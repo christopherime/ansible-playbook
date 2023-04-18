@@ -1,6 +1,6 @@
 ---
 - name: Deploy Prometheus
-  hosts: all
+  hosts: prometheus
   become: true
   tasks:
     - name: Ensure required packages are installed
@@ -8,12 +8,24 @@
         name:
           - docker
         state: present
+    
+    - name: Create Prometheus directory
+      file:
+        path: "{{ prometheus_config_path }}"
+        state: directory
+        mode: "0755"
 
-    - name: Ensure Docker is running
-      service:
-        name: docker
-        state: started
-        enabled: yes
+    - name: Create prometheus.yml
+      template:
+        src: prometheus.yml.j2
+        dest: "{{ prometheus_config_path }}/prometheus.yml"
+        mode: "0755"
+    
+    - name: Create Prometheus rules.yml
+      template:
+        src: rules.yml.j2
+        dest: "{{ prometheus_config_path }}/rules.yml"
+        mode: "0755"
 
     - name: Deploy Prometheus container
       community.docker.docker_container:
@@ -23,9 +35,9 @@
         recreate: yes
         pull: true
         restart_policy: unless-stopped
-        env:
+        volumes:
+          - "{{ prometheus_config_path }}:/etc/prometheus"
         command:
-          - '--storage.tsdb.path=/prometheus'
           - '--config.file=/etc/prometheus/prometheus.yml'
           - '--web.enable-lifecycle'
         ports:

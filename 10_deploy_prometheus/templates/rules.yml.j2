@@ -1,7 +1,7 @@
 groups:
   - name: prometheusUp
     rules:
-      - alert: BogusAlert
+      - alert: prometheusUp
         expr: up{job="prometheus"} != 1
         labels:
           severity: critical
