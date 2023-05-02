@@ -15,19 +15,20 @@
         state: started
         enabled: yes
 
-    - name: Create plex/config directory on target host
-      file:
-        path: "{{ plex_config_path}}"
+    - name: Create directory Plex config
+      ansible.builtin.file:
+        path: /mnt/plex_config
         state: directory
-        mode: "0755"
+        mode: '0755'
 
-    - name: Create NFS Docker volume
+    - name: Create media NFS Docker volume
       community.docker.docker_volume:
-        name: media 
+        name: media
+        recreate: always
         driver: local
         driver_options:
           type: nfs
-          o: addr={{ nfs_server }},rw,nfsvers=3
+          o: addr={{ nfs_server }},rw,nfsvers=4,soft
           device: "{{ nfs_media_path }}"
 
     - name: Deploy Plex container
@@ -41,11 +42,12 @@
         network_mode: host
         runtime: nvidia
         env:
-          PUID: "1000"
-          PGID: "1000"
+          PUID: "{{ nfs_plex_puid }}"
+          PGID: "{{ nfs_plex_pgid }}"
           TZ: "{{ timezone }}"
           VERSION: "docker"
           NVIDIA_VISIBLE_DEVICES: "all"
+          PLEX_CLAIM: "claim-pyWbYxxBeLGfdxU9zz9J"
         volumes:
-          - "{{ plex_config_path }}:/config"
+          - "/mnt/plex_config:/config"
           - "media:/media"
