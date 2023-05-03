@@ -17,7 +17,7 @@
 
     - name: Create directory Plex config
       ansible.builtin.file:
-        path: /mnt/plex_config
+        path: /media/sdb/plex_config
         state: directory
         mode: '0755'
 
@@ -49,5 +49,5 @@
           NVIDIA_VISIBLE_DEVICES: "all"
           PLEX_CLAIM: "claim-pyWbYxxBeLGfdxU9zz9J"
         volumes:
-          - "/mnt/plex_config:/config"
+          - "/media/sdb/plex_config:/config"
           - "media:/media"
