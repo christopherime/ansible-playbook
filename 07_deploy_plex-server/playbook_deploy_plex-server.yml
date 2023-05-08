@@ -24,7 +24,7 @@
     - name: Create media NFS Docker volume
       community.docker.docker_volume:
         name: media
-        recreate: always
+          #recreate: always
         driver: local
         driver_options:
           type: nfs
