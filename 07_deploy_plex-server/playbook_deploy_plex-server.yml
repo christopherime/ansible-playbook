@@ -46,8 +46,13 @@
           PGID: "{{ nfs_plex_pgid }}"
           TZ: "{{ timezone }}"
           VERSION: "docker"
+          NVIDIA_DRIVER_CAPABILITIES: "all"
           NVIDIA_VISIBLE_DEVICES: "all"
-          PLEX_CLAIM: "claim-pyWbYxxBeLGfdxU9zz9J"
+          PLEX_CLAIM: "{{ plex_claim }}"
         volumes:
           - "/media/sdb/plex_config:/config"
           - "media:/media"
+        device_requests:
+          - driver: nvidia
+            count: -1  # Request all available GPUs
+            capabilities: [['gpu'], ['nvidia']]  # Request GPU capabilities

@@ -2,3 +2,5 @@ group_vars/*
 host_vars/*
 inventory.*
 .env
+.vscode
+.idea
