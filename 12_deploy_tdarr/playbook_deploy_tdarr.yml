@@ -7,11 +7,7 @@
       - "server"
       - "configs"
       - "logs"
-      - "transcode_cache"
-    node_directories:
-      - "configs"
-      - "logs"
-      - "transcode_cache"
+
   tasks:
     - name: Ensure required packages are installed
       package:
@@ -25,6 +21,13 @@
         state: started
         enabled: yes
 
+    - name: Create required directories for server
+      ansible.builtin.file:
+        path: "{{ tdarr_file_path }}/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ server_directories }}"
+
     - name: Create media NFS Docker volume
       community.docker.docker_volume:
         name: media
@@ -34,26 +37,19 @@
           o: addr={{ nfs_server }},rw,nfsvers=4,soft
           device: "{{ nfs_media_path }}"
 
+    - name: Create transcode_cache NFS Docker volume
+      community.docker.docker_volume:
+        name: transcode_cache
+        driver: local
+        driver_options:
+          type: nfs
+          o: addr={{ nfs_server }},rw,nfsvers=4,soft
+          device: "{{ tdarr_nfs_transcode_cache_path }}"
+
     - name: Create Docker network
       community.docker.docker_network:
         name: tdarr_network
         state: present
-
-    - name: Create required directories for server
-      ansible.builtin.file:
-        path: "{{ tdarr_file_path }}/{{ item }}"
-        state: directory
-        mode: '0755'
-      loop: "{{ server_directories }}"
-
-    - name: Create required directories for nodes
-      ansible.builtin.file:
-        path: "{{ tdarr_file_path }}-node-{{ '%02d' | format(item[0]|int) }}/{{ item[1] }}"
-        state: directory
-        mode: '0755'
-      loop: "{{ range(1, tdarr_node_number|int + 1)|list | product(node_directories) | list }}"
-      loop_control:
-        loop_var: item
 
     - name: Deploy Tdarr Server container
       community.docker.docker_container:
@@ -78,8 +74,8 @@
           internalNode: "true"
           inContainer: "true"
           nodeName: "tdarr-server"
-          NVIDIA_DRIVER_CAPABILITIES: "all"
           NVIDIA_VISIBLE_DEVICES: "all"
+          NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
         volumes:
           - "{{ tdarr_file_path }}/server:/app/server"
           - "{{ tdarr_file_path }}/configs:/app/configs"
@@ -91,61 +87,11 @@
             count: -1
             capabilities: [['gpu'], ['nvidia']]
         runtime: nvidia
-
-    - name: Create required directories for nodes
-      ansible.builtin.file:
-        path: "{{ tdarr_file_path }}-node-{{ '%02d' | format(item) }}/{{ dir }}"
-        state: directory
-        mode: '0755'
-      loop: "{{ range(1, tdarr_node_number|int + 1)|list }}"
-      loop_control:
-        loop_var: item
-        extended: yes
-      vars:
-        dir: "{{ node_directories }}"
-
-    - name: Deploy Tdarr Node containers
-      community.docker.docker_container:
-        name: "tdarr-node-{{ '%02d' | format(item) }}"
-        image: ghcr.io/haveagitgat/tdarr_node:latest
-        state: started
-        recreate: yes
-        pull: true
-        restart_policy: unless-stopped
-        network_mode: tdarr_network
-        env:
-          TZ: "{{ timezone }}"
-          PUID: "{{ tdarr_puid }}"
-          PGID: "{{ tdarr_pgid }}"
-          UMASK_SET: "002"
-          nodeName: "tdarr-node-{{ '%02d' | format(item) }}"
-          serverIP: "0.0.0.0"
-          serverPort: "8266"
-          inContainer: "true"
-          NVIDIA_DRIVER_CAPABILITIES: "all"
-          NVIDIA_VISIBLE_DEVICES: "all"
-        volumes:
-          - "{{ tdarr_file_path }}-node-{{ '%02d' | format(item) }}/configs:/app/configs"
-          - "{{ tdarr_file_path }}-node-{{ '%02d' | format(item) }}/logs:/app/logs"
-          - "{{ tdarr_file_path }}-node-{{ '%02d' | format(item) }}/transcode_cache:/temp"
-          - "media:/media"
-        device_requests:
-          - driver: nvidia
-            count: -1
-            capabilities: [['gpu'], ['nvidia']]
-        runtime: nvidia
-      loop: "{{ range(1, tdarr_node_number|int + 1)|list }}"
-      when: tdarr_node_number is defined
-
-    - name: Destroy Tdarr Server container
-      community.docker.docker_container:
-        name: tdarr
-        state: absent
-      when: destroy_containers | default(false) | bool
-
-    - name: Destroy Tdarr Node containers
-      community.docker.docker_container:
-        name: "tdarr-node-{{ '%02d' | format(item) }}"
-        state: absent
-      loop: "{{ range(1, tdarr_node_number|int + 1)|list }}"
-      when: destroy_containers | default(false) | bool
+        devices:
+          - "/dev/nvidia0:/dev/nvidia0"
+          - "/dev/nvidiactl:/dev/nvidiactl"
+          - "/dev/nvidia-modeset:/dev/nvidia-modeset"
+          - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+          - "/dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools"
+        capabilities:
+          - SYS_ADMIN
