@@ -2,6 +2,10 @@
 - name: Deploy Ansible Semaphore
   hosts: semaphore
   become: true
+  vars_files:
+    - "/Users/christopherime/Developement/ansible-playbook/vaults/semaphore"
+  vars:
+    semaphore_image: "semaphoreui/semaphore:{{ semaphore_version }}"
   tasks:
     - name: Ensure required packages are installed
       ansible.builtin.package:
@@ -13,7 +17,15 @@
       ansible.builtin.service:
         name: docker
         state: started
-        enabled: true
+        enabled: "{{ docker_systemd_enable | default(omit) }}"
+
+    - name: Pull Docker Images
+      community.docker.docker_image:
+        name: "{{ item }}"
+        source: pull
+      loop:
+        - postgres:14
+        - "{{ semaphore_image }}"
 
     - name: Ensure correct permissions for /var/lib/semaphore
       ansible.builtin.file:
@@ -21,9 +33,20 @@
         state: directory
         mode: '0777'
 
+    - name: Ensure correct permissions for /var/lib/semaphore/playbooks
+      ansible.builtin.file:
+        path: /var/lib/semaphore/playbooks
+        state: directory
+        mode: '0777'
+
     - name: Ensure postgres volume is created
       community.docker.docker_volume:
         name: semaphore-postgres
+        state: present
+
+    - name: Create semaphore_network in docker
+      community.docker.docker_network:
+        name: semaphore_network
         state: present
 
     - name: Ensure postgres container is running
@@ -40,11 +63,13 @@
           POSTGRES_USER: "{{ postgres_user }}"
           POSTGRES_PASSWORD: "{{ postgres_password }}"
           POSTGRES_DB: "semaphore"
+        networks:
+          - name: semaphore_network
 
     - name: Ensure semaphore container is running
       community.docker.docker_container:
         name: semaphore
-        image: semaphoreui/semaphore:latest
+        image: "{{ semaphore_image }}"
         state: started
         restart_policy: unless-stopped
         ports:
@@ -53,21 +78,20 @@
           - "/var/lib/semaphore:/tmp/semaphore/"
         env:
           SEMAPHORE_DB_USER: "{{ postgres_user }}"
-          SEMAPHORE_DB_PASS: "{{ postgres_password }}}}"
+          SEMAPHORE_DB_PASS: "{{ postgres_password }}"
           SEMAPHORE_DB_HOST: "postgres"
           SEMAPHORE_DB_PORT: "5432"
           SEMAPHORE_DB_DIALECT: "postgres"
           SEMAPHORE_DB: "semaphore"
-          SEMAPHORE_PLAYBOOK_PATH: "/tmp/semaphore/"
+          SEMAPHORE_PLAYBOOK_PATH: "/var/lib/semaphore/playbooks"
           SEMAPHORE_ADMIN_PASSWORD: "{{ semaphore_admin_password }}"
           SEMAPHORE_ADMIN_NAME: "{{ semaphore_admin_name }}"
-          SEMAPHORE_ADMIN_EMAIL: "[email protected]"
+          SEMAPHORE_ADMIN_EMAIL: "{{ semaphore_admin_email }}"
           SEMAPHORE_ADMIN: "admin"
           SEMAPHORE_ACCESS_KEY_ENCRYPTION: "{{ semaphore_access_key_encryption }}"
           SEMAPHORE_LDAP_ACTIVATED: "no"
-        links:
-          - postgres
-
+        networks:
+          - name: semaphore_network
   handlers:
     - name: Restart docker
       ansible.builtin.service:
