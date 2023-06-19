@@ -4,3 +4,4 @@ inventory.*
 .env
 .vscode
 .idea
+*/ansible-vaults/
