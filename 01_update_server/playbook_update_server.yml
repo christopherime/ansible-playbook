@@ -1,15 +1,11 @@
 ---
 - name: Update package
   hosts: all
-  become: yes
+  become: true
   tasks:
-    - name: Update package
-      apt:
-        update_cache: yes
-        upgrade: yes
+    - name: Update package apt
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: true
       when: ansible_os_family == "Debian"
-    - name: Update package
-      yum:
-        name: '*'
-        state: latest
-      when: ansible_os_family == "RedHat"
+...
