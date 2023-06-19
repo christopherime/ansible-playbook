@@ -1,0 +1,77 @@
+---
+- name: Deploy Ansible Semaphore
+  hosts: semaphore
+  become: true
+  tasks:
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+          - docker
+        state: present
+
+    - name: Ensure Docker is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Ensure correct permissions for /var/lib/semaphore
+      ansible.builtin.file:
+        path: /var/lib/semaphore
+        state: directory
+        mode: '0777'
+
+    - name: Ensure postgres volume is created
+      community.docker.docker_volume:
+        name: semaphore-postgres
+        state: present
+
+    - name: Ensure postgres container is running
+      community.docker.docker_container:
+        name: postgres
+        image: postgres:14
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "5432:5432"
+        volumes:
+          - "semaphore-postgres:/var/lib/postgresql/data"
+        env:
+          POSTGRES_USER: "semaphore"
+          POSTGRES_PASSWORD: "semaphore"
+          POSTGRES_DB: "semaphore"
+
+    - name: Ensure semaphore container is running
+      community.docker.docker_container:
+        name: semaphore
+        image: semaphoreui/semaphore:latest
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3021:3000"
+        volumes:
+          - "/var/lib/semaphore:/tmp/semaphore/"
+        env:
+          SEMAPHORE_DB_USER: "semaphore"
+          SEMAPHORE_DB_PASS: "semaphore"
+          SEMAPHORE_DB_HOST: "postgres"
+          SEMAPHORE_DB_PORT: "5432"
+          SEMAPHORE_DB_DIALECT: "postgres"
+          SEMAPHORE_DB: "semaphore"
+          SEMAPHORE_PLAYBOOK_PATH: "/tmp/semaphore/"
+          SEMAPHORE_ADMIN_PASSWORD: "changeme"
+          SEMAPHORE_ADMIN_NAME: "admin"
+          SEMAPHORE_ADMIN_EMAIL: "[email protected]"
+          SEMAPHORE_ADMIN: "admin"
+          SEMAPHORE_ACCESS_KEY_ENCRYPTION: "gs72mPntFATGJs9qK0pQ0rKtfidlexiMjYCH9gWKhTU="
+          SEMAPHORE_LDAP_ACTIVATED: "no"
+        links:
+          - postgres
+
+  handlers:
+    - name: Restart docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted
+      listen: "restart docker"
+...

@@ -1,19 +1,19 @@
 ---
 - name: Deploy Plex Media Server
-  hosts: all
+  hosts: plex
   become: true
   tasks:
     - name: Ensure required packages are installed
-      package:
+      ansible.builtin.package:
         name:
           - docker
         state: present
 
     - name: Ensure Docker is running
-      service:
+      ansible.builtin.service:
         name: docker
         state: started
-        enabled: yes
+        enabled: true
 
     - name: Create directory Plex config
       ansible.builtin.file:
@@ -35,14 +35,14 @@
         name: plex
         image: lscr.io/linuxserver/plex:latest
         state: started
-        recreate: yes
+        recreate: false
         pull: true
         restart_policy: unless-stopped
         network_mode: host
         runtime: nvidia
-        devices:
-          - "/dev/nvidia0:/dev/nvidia0"
-          - "/dev/nvidiactl:/dev/nvidiactl"
+        # devices:
+        #   - "/dev/nvidia0:/dev/nvidia0"
+        #   - "/dev/nvidiactl:/dev/nvidiactl"
         env:
           VERSION: "docker"
           TZ: "{{ timezone }}"
@@ -54,9 +54,10 @@
         volumes:
           - "{{ plex_config_file_path }}:/config"
           - "media:/media"
-        device_requests:
-          - driver: nvidia
-            count: -1
-            capabilities: [['gpu'], ['nvidia']]
-        capabilities:
-          - SYS_ADMIN
+        # device_requests:
+        #   - driver: nvidia
+        #     count: -1
+        #     capabilities: [['gpu'], ['nvidia']]
+        # capabilities:
+        #   - SYS_ADMIN
+...
