@@ -1,12 +1,28 @@
 ---
 - name: Deploy Ansible Semaphore
   hosts: semaphore
+  strategy: linear
   become: true
-  vars_files:
-    - "/Users/christopherime/Developement/ansible-playbook/vaults/semaphore"
   vars:
     semaphore_image: "semaphoreui/semaphore:{{ semaphore_version }}"
   tasks:
+
+    - name: Clone private repository
+      ansible.builtin.git:
+        repo: "git@github.com:christopherime/ansible-vaults.git"
+        dest: "ansible-vaults"
+        version: main
+        accept_hostkey: true
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Include variables from the vault
+      ansible.builtin.include_vars: "ansible-vaults/semaphore"
+      delegate_to: localhost
+      run_once: true
+      no_log: true
+
     - name: Ensure required packages are installed
       ansible.builtin.package:
         name:

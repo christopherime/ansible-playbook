@@ -3,3 +3,4 @@
   ansible.builtin.ansible_galaxy_collection:
     name: community.docker
     source: https://galaxy.ansible.com
+...
