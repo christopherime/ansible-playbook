@@ -2,8 +2,6 @@
 - name: Deploy Plex Media Server
   hosts: all
   become: true
-  vars:
-w
   tasks:
     - name: Create tarball of /plex directory on target host (async)
       ansible.builtin.archive:

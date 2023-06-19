@@ -37,8 +37,8 @@
         volumes:
           - "semaphore-postgres:/var/lib/postgresql/data"
         env:
-          POSTGRES_USER: "semaphore"
-          POSTGRES_PASSWORD: "semaphore"
+          POSTGRES_USER: "{{ postgres_user }}"
+          POSTGRES_PASSWORD: "{{ postgres_password }}"
           POSTGRES_DB: "semaphore"
 
     - name: Ensure semaphore container is running
@@ -52,18 +52,18 @@
         volumes:
           - "/var/lib/semaphore:/tmp/semaphore/"
         env:
-          SEMAPHORE_DB_USER: "semaphore"
-          SEMAPHORE_DB_PASS: "semaphore"
+          SEMAPHORE_DB_USER: "{{ postgres_user }}"
+          SEMAPHORE_DB_PASS: "{{ postgres_password }}}}"
           SEMAPHORE_DB_HOST: "postgres"
           SEMAPHORE_DB_PORT: "5432"
           SEMAPHORE_DB_DIALECT: "postgres"
           SEMAPHORE_DB: "semaphore"
           SEMAPHORE_PLAYBOOK_PATH: "/tmp/semaphore/"
-          SEMAPHORE_ADMIN_PASSWORD: "changeme"
-          SEMAPHORE_ADMIN_NAME: "admin"
+          SEMAPHORE_ADMIN_PASSWORD: "{{ semaphore_admin_password }}"
+          SEMAPHORE_ADMIN_NAME: "{{ semaphore_admin_name }}"
           SEMAPHORE_ADMIN_EMAIL: "[email protected]"
           SEMAPHORE_ADMIN: "admin"
-          SEMAPHORE_ACCESS_KEY_ENCRYPTION: "gs72mPntFATGJs9qK0pQ0rKtfidlexiMjYCH9gWKhTU="
+          SEMAPHORE_ACCESS_KEY_ENCRYPTION: "{{ semaphore_access_key_encryption }}"
           SEMAPHORE_LDAP_ACTIVATED: "no"
         links:
           - postgres
