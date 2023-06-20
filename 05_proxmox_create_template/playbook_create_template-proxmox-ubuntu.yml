@@ -1,7 +1,7 @@
 ---
 - name: Create Ubuntu Template
   hosts: all
-  become: yes
+  become: true
   vars:
     ansible_mgmt_user: mgmt
     version: jammy
@@ -106,3 +106,4 @@
             - sudo qm set {{ vm_id }} --serial0 socket --vga serial0
             - sudo qm set {{ vm_id }} --agent enabled=1
             - sudo qm template {{ vm_id }}
+...

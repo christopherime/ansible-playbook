@@ -1,8 +1,36 @@
 ---
-- name: Update package
+- name: Clone inventory and load vars
+  hosts: localhost
+  strategy: linear
+  become: true
+  tasks:
+
+    - name: Clone private repository
+      ansible.builtin.git:
+        repo: "git@github.com:christopherime/inventory.git"
+        dest: "inventory"
+        version: main
+        accept_hostkey: true
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Include variables from the inventory
+      ansible.builtin.include_vars: "inventory/vars_file.yml" # Replace with your vars file name
+      delegate_to: localhost
+      run_once: true
+      no_log: true
+
+- name: Update packages
   hosts: all
   become: true
   tasks:
+
+    - name: Ensure git is present
+      ansible.builtin.package:
+        name: git
+        state: present
+
     - name: Update package apt
       ansible.builtin.apt:
         update_cache: true
