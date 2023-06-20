@@ -1,0 +1,70 @@
+---
+- name: Deploy ELK Stack
+  hosts: elk_hosts
+  become: true
+  vars:
+    elk_version: "8.8.0"
+    es_repo: "docker.elastic.co/elasticsearch/elasticsearch"
+    kibana_repo: "docker.elastic.co/kibana/kibana"
+    logstash_repo: "docker.elastic.co/logstash/logstash"
+  tasks:
+    - name: Create a network
+      community.docker.docker_network:
+        name: elk_network
+        state: present
+
+    - name: Pull ElasticSearch Docker image
+      community.docker.docker_image:
+        name: "{{ es_repo }}:{{ elk_version }}"
+        source: pull
+
+    - name: Run ElasticSearch container
+      community.docker.docker_container:
+        name: elasticsearch
+        image: "{{ es_repo }}:{{ elk_version }}"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "9200:9200"
+          - "9300:9300"
+        env:
+          discovery.type: "single-node"
+        networks:
+          - name: elk_network
+
+    - name: Pull Kibana Docker image
+      community.docker.docker_image:
+        name: "{{ kibana_repo }}:{{ elk_version }}"
+        source: pull
+
+    - name: Run Kibana container
+      community.docker.docker_container:
+        name: kibana
+        image: "{{ kibana_repo }}:{{ elk_version }}"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "5601:5601"
+        links:
+          - "elasticsearch:elasticsearch"
+        networks:
+          - name: elk_network
+
+    - name: Pull Logstash Docker image
+      community.docker.docker_image:
+        name: "{{ logstash_repo }}:{{ elk_version }}"
+        source: pull
+
+    - name: Run Logstash container
+      community.docker.docker_container:
+        name: logstash
+        image: "{{ logstash_repo }}:{{ elk_version }}"
+        state: started
+        restart_policy: always
+        published_ports:
+          - "5000:5000"
+        links:
+          - "elasticsearch:elasticsearch"
+        networks:
+          - name: elk_network
+...
