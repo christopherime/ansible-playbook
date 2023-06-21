@@ -1,0 +1,45 @@
+---
+- name: Deploy node_exporter
+  hosts: all
+  become: true
+  vars:
+    node_exporter_version: "v1.6.0"
+    node_exporter_image: "prom/node-exporter"
+  tasks:
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+          - docker
+        state: present
+
+    - name: Ensure Docker is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: "{{ docker_systemd_enable | default(omit) }}"
+
+    - name: Pull Docker Images
+      community.docker.docker_image:
+        name: "{{ item }}"
+        source: pull
+      loop:
+        - "{{ node_exporter_image }}:{{ node_exporter_version }}"
+
+    - name: Create node_exporter container
+      community.docker.docker_container:
+        name: "node-exporter"
+        image: "{{ node_exporter_image }}:{{ node_exporter_version }}"
+        state: started
+        restart_policy: unless-stopped
+        published_ports:
+          - "9100:9100"
+        volumes:
+          - "/proc:/host/proc:ro"
+          - "/sys:/host/sys:ro"
+          - "/:/rootfs:ro"
+        command:
+          - "--path.procfs=/host/proc"
+          - "--path.rootfs=/rootfs"
+          - "--path.sysfs=/host/sys"
+          - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+...

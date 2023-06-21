@@ -1,0 +1,49 @@
+---
+- name: Deploy cadvisor
+  hosts: all
+  become: true
+  vars:
+    cadvisor_version: "v0.47.1"
+    cadvisor_image: "gcr.io/cadvisor/cadvisor"
+  tasks:
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+          - docker
+        state: present
+
+    - name: Ensure Docker is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: "{{ docker_systemd_enable | default(omit) }}"
+
+    - name: Pull Docker Images
+      community.docker.docker_image:
+        name: "{{ item }}"
+        source: pull
+      loop:
+        - "{{ cadvisor_image }}:{{ cadvisor_version }}"
+
+    - name: Create cadvisor container
+      community.docker.docker_container:
+        name: cadvisor
+        image: "{{ cadvisor_image }}:{{ cadvisor_version }}"
+        restart_policy: unless-stopped
+        ports:
+          - "8080:8080"
+        volumes:
+          - "/:/rootfs:ro"
+          - "/var/run:/var/run:rw"
+          - "/sys:/sys:ro"
+          - "/var/lib/docker/:/var/lib/docker:ro"
+          - "/dev/disk/:/dev/disk:ro"
+        privileged: true
+        devices:
+          - "/dev/kmsg"
+        state: started
+        log_driver: json-file
+        log_options:
+          max-size: "10m"
+          max-file: "3"
+...
